@@ -22,19 +22,16 @@ object Sindy {
         .toDF())
     }
 
-    var total = Seq.empty[(String, String)].toDF("Value", "Colname")
-
-    for (i <- inputs.indices){
-      for(j <- dfs(i).columns.indices){
-        val column = dfs(i)
-          .select(dfs(i).columns(j))
-          .distinct()
-          .withColumn("Colname", lit(dfs(i).columns(j)))
-          .toDF("Value", "Colname")
-
-        total = total.union(column)
-      }
-    }
+    val tuples = dfs.flatMap(
+      t => t.columns
+        .map(
+          col => t
+            .select(col)
+            .distinct
+            .withColumn("Colname", lit(col))
+            .toDF("Value", "Colname")
+        )
+    ).reduce((a, b) => a.union(b))
 
     def inclusionLists(list: Set[String]): Array[(String, Set[String])] = {
       var result = Array[(String, Set[String])]()
@@ -43,10 +40,10 @@ object Sindy {
         result = result :+ (i, list - i)
       }
 
-      return result
+      result
     }
 
-    val result = total
+    val result = tuples
       .as[(String, String)]
       .groupByKey(t => t._1)
       .mapGroups{ (key, iterator) => (key, iterator
